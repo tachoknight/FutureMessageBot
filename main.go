@@ -8,8 +8,17 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
+
+func pollDb() {
+
+	for {
+		time.Sleep((1000 * time.Millisecond) * 60)
+		fmt.Println("Hi there from a go routine")
+	}
+}
 
 func handleReminderRequest(text string) string {
 	retMessage := ""
@@ -47,6 +56,8 @@ func main() {
 		log.Fatal(err)
 	}
 	defer db.Close()
+
+	go pollDb()
 
 	// The pattern we're going to use is something like:
 	//		!remind 24h Hey! 24 hours ago you asked me to remind you of this!
