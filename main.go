@@ -1,17 +1,19 @@
 package main
 
 import (
-	"bufio"
 	"database/sql"
 	"fmt"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/thoj/go-ircevent"
 	"log"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
 )
+
+var ircCon *irc.Connection
+var roomName = "#zzzxxx111xyzzy"
 
 func pollDb() {
 
@@ -49,7 +51,8 @@ func pollDb() {
 
 			ids = append(ids, id)
 
-			fmt.Printf("Hey %s! You wanted me to remind you of: %s!\n", nickname, remindMessage)
+			// Tell the user what they wanted to hear
+			ircCon.Privmsg(roomName, fmt.Sprintf("Hey %s! You wanted me to remind you of: %s!\n", nickname, remindMessage))
 		}
 		rows.Close()
 
@@ -190,6 +193,17 @@ func handleReminderRequest(nickname, text string) string {
 func main() {
 	log.Println("*** FUTUREBOT STARTING ***")
 
+	// Get connected to IRC...
+	ircCon = irc.IRC("future-msg-bot", "future-msg-bot")
+	err := ircCon.Connect("irc.freenode.net:6667")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	ircCon.AddCallback("001", func(e *irc.Event) {
+		ircCon.Join(roomName)
+	})
+
 	// This is the function that will handle the actual sending of the reminders
 	go pollDb()
 
@@ -201,23 +215,18 @@ func main() {
 	//			- Valid amounts are h (hours), d (days), w (weeks), m (minutes), s (seconds)
 	//		* The text you want messaged to you at that time
 
-	// Temporary - read from stdin as if IRC
-	nickname := "tachoknight"
-	reader := bufio.NewReader(os.Stdin)
-	for {
-		fmt.Print("Faux IRC: ")
-		text, _ := reader.ReadString('\n')
-		fmt.Println(strings.TrimSpace(text))
-
-		// Is this a command to us?
-		if utf8.RuneCountInString(text) > 6 && text[0:7] == "!remind" {
+	ircCon.AddCallback("PRIVMSG", func(e *irc.Event) {
+		ircMsg := e.Message()
+		if utf8.RuneCountInString(ircMsg) > 6 && ircMsg[0:7] == "!remind" {
 			log.Println("Someone wants to be reminded of something...")
 			// Try to handle what they entered; if we could handle it in
 			// the function, we'll return something like 'okay...' and when
 			// we couldn't handle it, we'll return an error to the user
-			fmt.Println(handleReminderRequest(nickname, text))
+			ircCon.Privmsg(roomName, handleReminderRequest(e.Nick, ircMsg))
 		}
-	}
+	})
+
+	ircCon.Loop()
 
 	log.Println("*** FUTUREBOT ENDING ***")
 }
